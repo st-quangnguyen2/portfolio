@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nguyen Hoang Duy Quang · Fullstack Developer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0A0C14;
+    --accent: #60A5FA;
+    --accent-light: #93C5FD;
+    --green: #34D399;
+    --amber: #FBBF24;
+    --text: #E2E8F0;
+    --heading: #F1F5F9;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+  ::selection { background: rgba(96,165,250,0.3); }
+  a { color: inherit; }
+
+  /* ===== Keyframes ===== */
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  @keyframes scrollDot { 0% { transform: translateX(-50%) translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(-50%) translateY(12px); opacity: 0; } }
+  @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+  @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes shimmer { 0% { left: -100%; } 100% { left: 200%; } }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #60A5FA, #34D399, #A78BFA, #60A5FA);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 4s ease infinite;
+  }
+
+  /* ===== Canvas layers ===== */
+  #ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  #content { position: relative; z-index: 1; }
+
+  /* ===== Scroll progress ===== */
+  #progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    z-index: 200; background: linear-gradient(90deg, #60A5FA, #34D399);
+    box-shadow: 0 0 10px rgba(96,165,250,0.5); transition: width 0.1s linear;
+  }
+
+  /* ===== Nav ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: transparent; border-bottom: 1px solid transparent;
+    transition: all 0.4s ease;
+  }
+  nav.scrolled { background: rgba(10,12,20,0.92); backdrop-filter: blur(20px); border-bottom-color: rgba(255,255,255,0.06); }
+  .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; height: 60px; }
+  .nav-logo { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 18px; color: var(--accent); text-decoration: none; letter-spacing: -0.5px; transition: opacity 0.3s; z-index: 102; }
+  .nav-logo:hover { opacity: 0.75; }
+  .nav-links { display: flex; gap: 28px; }
+  .nav-link {
+    position: relative; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.6);
+    text-decoration: none; letter-spacing: 0.5px; text-transform: uppercase;
+    padding-bottom: 6px; transition: color 0.3s ease;
+  }
+  .nav-link::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: var(--accent); transform: scaleX(0); transform-origin: center;
+    transition: transform 0.35s var(--ease);
+  }
+  .nav-link:hover::after, .nav-link.is-active::after { transform: scaleX(1); }
+  .nav-link:hover { color: var(--accent-light); }
+  .nav-link.is-active { color: var(--accent); }
+
+  .nav-burger { display: none; flex-direction: column; justify-content: center; gap: 5px; width: 32px; height: 32px; background: transparent; border: none; cursor: pointer; z-index: 102; }
+  .nav-burger span { display: block; width: 22px; height: 2px; background: var(--text); border-radius: 2px; transition: all 0.3s ease; }
+  .nav-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-burger.open span:nth-child(2) { opacity: 0; }
+  .nav-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  .nav-mobile { display: none; flex-direction: column; overflow: hidden; max-height: 0; opacity: 0; background: rgba(10,12,20,0.98); border-bottom: 1px solid transparent; transition: max-height 0.4s var(--ease), opacity 0.3s ease; }
+  .nav-mobile.open { max-height: 360px; opacity: 1; border-bottom-color: rgba(255,255,255,0.06); }
+  .nav-mobile a { padding: 16px 28px; font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.6); text-decoration: none; letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.04); transition: color 0.3s; }
+  .nav-mobile a:hover, .nav-mobile a.is-active { color: var(--accent); }
+
+  /* ===== Sections ===== */
+  section { max-width: 1100px; margin: 0 auto; }
+  .section-pad { padding: 100px 24px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 3px; margin-bottom: 12px; text-transform: uppercase; }
+  .section-title { font-size: 36px; font-weight: 800; letter-spacing: -1px; color: var(--heading); }
+
+  /* ===== Hero ===== */
+  #hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; max-width: none; }
+  #hero-canvas { position: absolute; inset: 0; pointer-events: none; }
+  .orb { position: absolute; border-radius: 50%; pointer-events: none; }
+  .hero-content { text-align: center; padding: 0 24px; position: relative; z-index: 1; }
+  .hero-pre { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--accent); margin-bottom: 20px; letter-spacing: 2px; }
+  .hero-title { font-size: 64px; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin-bottom: 16px; }
+  .hero-title .name1 { color: var(--heading); }
+  .hero-sub { font-size: 20px; color: rgba(255,255,255,0.42); max-width: 560px; margin: 0 auto 36px; line-height: 1.6; }
+  .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+  .reveal-hero { opacity: 0; transform: translateY(20px); transition: all 0.8s var(--ease); }
+  .reveal-hero.in { opacity: 1; transform: translateY(0); }
+
+  .btn { padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 14px; text-decoration: none; letter-spacing: 0.5px; cursor: pointer; }
+  .btn-primary { background: linear-gradient(135deg, #60A5FA, #3B82F6); color: var(--bg); box-shadow: 0 0 30px rgba(96,165,250,0.2); transition: transform 0.3s, box-shadow 0.3s; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(96,165,250,0.35); }
+  .btn-secondary { background: transparent; color: #CBD5E1; font-weight: 600; border: 1px solid rgba(255,255,255,0.12); transition: all 0.3s; }
+  .btn-secondary:hover { border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.06); }
+
+  .shimmer { position: relative; overflow: hidden; }
+  .shimmer::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(96,165,250,0.08), transparent); animation: shimmer 3s ease-in-out infinite; }
+
+  .scroll-indicator { margin-top: 60px; animation: float 2s ease-in-out infinite; }
+  .mouse { width: 24px; height: 40px; border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; margin: 0 auto; position: relative; }
+  .mouse-dot { width: 4px; height: 8px; background: var(--accent); border-radius: 2px; position: absolute; left: 50%; top: 6px; animation: scrollDot 1.8s ease-in-out infinite; }
+
+  /* ===== Reveal on scroll ===== */
+  .reveal { opacity: 0; transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+  .reveal.up { transform: translateY(30px); }
+  .reveal.left { transform: translateX(40px); }
+  .reveal.right { transform: translateX(-40px); }
+  .reveal.scale { transform: scale(0.9); }
+  .reveal.in { opacity: 1; transform: translate(0) scale(1); }
+
+  /* ===== About / Stats ===== */
+  .about-text { font-size: 16px; line-height: 1.8; color: rgba(255,255,255,0.6); max-width: 720px; margin-bottom: 40px; }
+  .stats-row { display: flex; gap: 48px; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 48px; font-weight: 800; letter-spacing: -1px; font-family: 'IBM Plex Mono', monospace; }
+  .stat-label { font-size: 13px; color: rgba(255,255,255,0.5); font-weight: 500; margin-top: 4px; letter-spacing: 0.5px; }
+
+  /* ===== Skills ===== */
+  .skill-group { margin-bottom: 28px; }
+  .skill-cat { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 10px; letter-spacing: 1.2px; text-transform: uppercase; font-family: 'IBM Plex Mono', monospace; }
+  .skill-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .skill-pill {
+    display: inline-flex; align-items: center; padding: 7px 14px; border-radius: 8px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px; font-weight: 500; color: #CBD5E1; cursor: default;
+    transition: all 0.3s ease;
+  }
+  .skill-pill:hover { background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.3); color: var(--accent-light); box-shadow: 0 0 20px rgba(96,165,250,0.1); }
+
+  /* ===== Projects ===== */
+  .filters { display: flex; gap: 8px; margin-bottom: 36px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 7px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
+    background: transparent; color: rgba(255,255,255,0.5); font-size: 12px; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.5px; font-family: 'IBM Plex Mono', monospace;
+    transition: all 0.35s var(--ease);
+  }
+  .filter-btn:hover { border-color: rgba(96,165,250,0.3); color: #CBD5E1; }
+  .filter-btn.active { border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.12); color: var(--accent-light); transform: scale(1.05); }
+
+  .grid-projects { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .card {
+    position: relative; overflow: hidden; border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: transform 0.35s var(--ease), border-color 0.35s, box-shadow 0.35s;
+  }
+  .card-inner { position: relative; z-index: 1; background: rgba(255,255,255,0.02); border-radius: 16px; padding: 24px 24px 20px; height: 100%; display: flex; flex-direction: column; }
+  .card-glow { position: absolute; width: 300px; height: 300px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 0; }
+  .card:hover { transform: translateY(-4px); }
+  .card:hover .card-glow { opacity: 1; }
+  .card.blue:hover { border-color: rgba(96,165,250,0.35); box-shadow: 0 8px 30px rgba(96,165,250,0.08); }
+  .card.amber:hover { border-color: rgba(251,191,36,0.35); box-shadow: 0 8px 30px rgba(251,191,36,0.08); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .card-role { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.8px; font-family: 'IBM Plex Mono', monospace; }
+  .card-role.blue { color: var(--accent); }
+  .card-role.amber { color: var(--amber); }
+  .card-market { font-size: 10px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; animation: pulse 2s ease-in-out infinite; }
+  .card-title { font-size: 18px; font-weight: 700; color: var(--heading); margin: 4px 0 2px; letter-spacing: -0.3px; }
+  .card-period { font-size: 11px; color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; margin-bottom: 10px; letter-spacing: 0.3px; }
+  .card-desc { font-size: 13px; line-height: 1.65; color: rgba(255,255,255,0.6); margin-bottom: 16px; flex: 1; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 500; letter-spacing: 0.3px; }
+  .tag.blue { background: rgba(96,165,250,0.1); color: var(--accent-light); }
+  .tag.amber { background: rgba(251,191,36,0.1); color: #FCD34D; }
+
+  /* ===== Experience ===== */
+  .exp-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .exp-role { font-size: 20px; font-weight: 700; color: var(--heading); }
+  .exp-company { font-size: 15px; font-weight: 600; color: var(--accent); }
+  .exp-period { font-size: 13px; color: rgba(255,255,255,0.45); font-family: 'IBM Plex Mono', monospace; margin-left: auto; }
+  .exp-list { display: grid; gap: 12px; }
+  .exp-item-inner { display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; background: rgba(255,255,255,0.02); border-radius: 16px; }
+  .exp-dot { min-width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #60A5FA, #34D399); margin-top: 6px; box-shadow: 0 0 8px rgba(96,165,250,0.4); }
+  .exp-text { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.6); }
+
+  /* ===== Education ===== */
+  .edu-inner { padding: 22px 24px; background: rgba(255,255,255,0.02); border-radius: 16px; }
+  .edu-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .edu-school { font-size: 18px; font-weight: 700; color: var(--heading); }
+  .edu-period { font-size: 13px; color: rgba(255,255,255,0.45); font-family: 'IBM Plex Mono', monospace; margin-left: auto; }
+  .edu-detail { font-size: 14px; color: rgba(255,255,255,0.6); }
+  .edu-gpa { color: var(--green); font-weight: 600; }
+
+  /* ===== Contact ===== */
+  #contact { text-align: center; padding-bottom: 80px; }
+  .contact-sub { font-size: 16px; color: rgba(255,255,255,0.42); max-width: 480px; margin: 0 auto 40px; }
+  .contact-email { display: inline-block; padding: 16px 40px; border-radius: 12px; background: linear-gradient(135deg, #60A5FA, #3B82F6); color: var(--bg); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: 0.5px; box-shadow: 0 0 40px rgba(96,165,250,0.2); transition: transform 0.3s, box-shadow 0.3s; }
+  .contact-email:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(96,165,250,0.35); }
+  .contact-phone { font-size: 14px; color: rgba(255,255,255,0.5); margin-top: 20px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; }
+  .socials { display: flex; justify-content: center; gap: 32px; margin-top: 28px; }
+  .social-link { font-size: 13px; color: rgba(255,255,255,0.55); text-decoration: none; font-weight: 500; letter-spacing: 0.5px; transition: color 0.3s; }
+  .social-link:hover { color: var(--accent-light); }
+  .footer { margin-top: 80px; padding-top: 32px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: rgba(255,255,255,0.4); }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 768px) {
+    .grid-projects { grid-template-columns: 1fr; }
+    .hero-title { font-size: 36px; }
+    .hero-sub { font-size: 15px; }
+    .nav-links { display: none; }
+    .nav-burger { display: flex; }
+    .nav-mobile { display: flex; }
+    .section-pad { padding: 60px 20px; }
+    .stats-row { flex-direction: column; gap: 24px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<canvas id="ambient"></canvas>
+
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="#hero" class="nav-logo" data-scroll="hero">&lt;DuyQuang /&gt;</a>
+    <div class="nav-links" id="nav-links"></div>
+    <button class="nav-burger" id="burger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-mobile" id="nav-mobile"></div>
+</nav>
+
+<div id="content">
+
+  <!-- HERO -->
+  <section id="hero">
+    <canvas id="hero-canvas"></canvas>
+    <div class="orb" style="top:15%;left:20%;width:400px;height:400px;background:radial-gradient(circle,rgba(96,165,250,0.06) 0%,transparent 70%);animation:float 8s ease-in-out infinite;"></div>
+    <div class="orb" style="bottom:20%;right:15%;width:300px;height:300px;background:radial-gradient(circle,rgba(167,139,250,0.05) 0%,transparent 70%);animation:float 6s ease-in-out infinite 1s;"></div>
+    <div class="hero-content">
+      <p class="hero-pre reveal-hero" style="transition-delay:0.2s"><span id="typewriter"></span><span id="caret" style="color:var(--accent)">|</span></p>
+      <h1 class="hero-title reveal-hero" style="transition-delay:0.6s">
+        <span class="name1">Nguyen Hoang </span><span class="gradient-text">Duy Quang</span>
+      </h1>
+      <p class="hero-sub reveal-hero" style="transition-delay:1s">
+        Fullstack Developer with 5+ years building scalable web apps. Focused on clean architecture, performance, and great user experiences — with projects for the Japanese market.
+      </p>
+      <div class="hero-cta reveal-hero" style="transition-delay:1.3s">
+        <a href="#projects" class="btn btn-primary shimmer" data-scroll="projects">View Projects</a>
+        <a href="#contact" class="btn btn-secondary" data-scroll="contact">Get in Touch</a>
+      </div>
+      <div class="scroll-indicator reveal-hero" style="transition-delay:2s">
+        <div class="mouse"><div class="mouse-dot"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about" class="section-pad">
+    <div class="reveal right"><p class="eyebrow">About Me</p><h2 class="section-title" style="margin-bottom:24px">Building things that matter.</h2></div>
+    <div class="reveal left" style="transition-delay:0.15s">
+      <p class="about-text">I'm a Fullstack Developer based in Da Nang, Viet Nam. Over the past 5 years at SupremeTech, I've worked across the entire stack — from pixel-perfect frontends to robust backend architectures. I'm passionate about clean architecture and performance optimization, and I've led development teams while delivering products for the Japanese market, from e-commerce platforms to AI-powered applications.</p>
+    </div>
+    <div class="stats-row" id="stats"></div>
+  </section>
+
+  <!-- SKILLS -->
+  <section id="skills" class="section-pad">
+    <div class="reveal up"><p class="eyebrow">Tech Stack</p><h2 class="section-title" style="margin-bottom:48px">Tools I work with.</h2></div>
+    <div id="skills-list"></div>
+  </section>
+
+  <!-- PROJECTS -->
+  <section id="projects" class="section-pad">
+    <div class="reveal up"><p class="eyebrow">Projects</p><h2 class="section-title" style="margin-bottom:20px">Selected work.</h2></div>
+    <div class="reveal up" style="transition-delay:0.05s"><div class="filters" id="filters"></div></div>
+    <div class="grid-projects" id="project-grid"></div>
+  </section>
+
+  <!-- EXPERIENCE -->
+  <section id="experience" class="section-pad">
+    <div class="reveal up"><p class="eyebrow">Experience</p><h2 class="section-title" style="margin-bottom:32px">What I bring.</h2></div>
+    <div class="reveal left" style="transition-delay:0.1s">
+      <div class="exp-head">
+        <span class="exp-role">Software Engineer</span>
+        <span class="exp-company">@ SupremeTech</span>
+        <span class="exp-period">2021 – Now</span>
+      </div>
+    </div>
+    <div class="exp-list" id="exp-list"></div>
+  </section>
+
+  <!-- EDUCATION -->
+  <section id="education" class="section-pad" style="padding-top:60px;padding-bottom:40px">
+    <div class="reveal up"><p class="eyebrow">Education</p></div>
+    <div class="reveal up" style="transition-delay:0.1s">
+      <div class="card blue" id="edu-card">
+        <div class="card-glow" style="background:radial-gradient(circle,rgba(96,165,250,0.12) 0%,transparent 70%)"></div>
+        <div class="edu-inner">
+          <div class="edu-head">
+            <span class="edu-school">Duy Tan University</span>
+            <span class="edu-period">2017 – 2021</span>
+          </div>
+          <p class="edu-detail">Software Technology · <span class="edu-gpa">GPA 3.65 / 4.0 (Excellent)</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="section-pad">
+    <div class="reveal scale"><p class="eyebrow">Contact</p><h2 class="section-title" style="margin-bottom:16px">Let's work together.</h2>
+      <p class="contact-sub">Open to new opportunities, collaborations, or just a friendly chat about tech.</p>
+    </div>
+    <div class="reveal up" style="transition-delay:0.15s">
+      <a href="mailto:duyquang31296@gmail.com" class="contact-email shimmer">duyquang31296@gmail.com</a>
+    </div>
+    <div class="reveal up" style="transition-delay:0.2s">
+      <p class="contact-phone">(+84) 834 275 980 · Da Nang, Viet Nam</p>
+    </div>
+    <div class="reveal up" style="transition-delay:0.25s">
+      <div class="socials">
+        <a href="https://www.linkedin.com/in/yudquang312" class="social-link" target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+    <div class="footer">© 2026 Nguyen Hoang Duy Quang · Built with HTML, CSS &amp; JS</div>
+  </section>
+
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const PROJECTS = [
+  { title: "Estimation Web App", role: "Frontend Developer", period: "06/2021 – 01/2022", desc: "Task breakdown and estimation tool for the Japanese market. Built interactive UI for task splitting, estimation, and real-time collaboration. Managed code reviews, sprint planning, and client communication.", tags: ["Angular"], market: "Japan" },
+  { title: "Company Landing Page", role: "Frontend Developer", period: "01/2022 – 03/2022", desc: "Corporate landing page with custom theme, SEO optimization, and responsive design. Managed task delegation and ensured on-time delivery aligned with brand identity and marketing goals.", tags: ["WordPress"], market: null },
+  { title: "Talent Search Platform", role: "Fullstack Lead", period: "04/2022 – 06/2023", desc: "Recruitment platform connecting employers with candidates. Led fullstack team to deliver job posting management, candidate search, online CV builder, and applicant tracking system. Oversaw architecture decisions and cross-team coordination.", tags: ["WordPress", "React", "NestJS"], market: null },
+  { title: "Travel Moments", role: "Fullstack Lead", period: "07/2023 – 12/2024", desc: "Location-based travel sharing app for the Japanese market. Led fullstack development of interactive map features, photo sharing, bookmarking, and social engagement. Drove technical direction, API design, and delivery timeline.", tags: ["Next.js", "NestJS"], market: "Japan" },
+  { title: "Stadium Commerce", role: "Fullstack Lead", period: "06/2024 – 01/2025", desc: "In-stadium e-commerce platform for buying and selling merchandise and food during live events. Led integration of Medusa headless commerce with custom storefront. Ensured seamless ordering and real-time inventory management.", tags: ["Medusa"], market: null },
+  { title: "Dating Web App", role: "Frontend Lead", period: "02/2025 – 11/2025", desc: "Dating platform for the Japanese market. Led frontend team building profile matching, real-time chat, and recommendation flows. Guided UX decisions and ensured privacy-first design principles.", tags: ["React"], market: "Japan" },
+  { title: "VIP Stadium Service App", role: "Fullstack Lead", period: "11/2025 – Now", desc: "Premium in-stadium service app for VIP customers. Led fullstack development of exclusive ordering, concierge support, and real-time tracking. Owned technical architecture and priority fulfillment workflows.", tags: ["Next.js"], market: null },
+  { title: "AI Media Editor", role: "Freelance", period: "03/2025 – 05/2025", desc: "AI-powered web app for editing photos, videos, and voice. Built fullstack features integrating AI services for image enhancement, video processing, and voice manipulation. Designed intuitive editing workflows and media pipeline.", tags: ["Next.js", "NestJS", "AI"], market: null },
+  { title: "Online Learning Platform", role: "Freelance", period: "08/2025 – 12/2025", desc: "E-learning platform for online teaching and learning. Developed course management, video streaming, student progress tracking, and interactive lesson features. Supported both instructor and learner workflows end to end.", tags: ["Next.js", "NestJS"], market: null },
+];
+
+const SKILLS = [
+  { category: "Frontend", items: ["React", "Next.js", "Angular", "Vue", "TypeScript", "Tailwind CSS", "Redux", "HTML5/CSS3"] },
+  { category: "Backend", items: ["Node.js", "NestJS", "RESTful API", "GraphQL"] },
+  { category: "Database", items: ["PostgreSQL", "MySQL", "MongoDB", "Redis", "Prisma ORM", "TypeORM"] },
+  { category: "CMS / Commerce", items: ["WordPress", "Medusa"] },
+];
+
+const EXPERIENCE = [
+  "Designed and developed high-performance web applications with a focus on responsive design, fast load times, and high availability",
+  "Built reusable UI component libraries with React and TypeScript, significantly reducing frontend development time across teams",
+  "Implemented pixel-perfect interfaces from Figma designs, ensuring cross-browser compatibility and accessibility standards",
+  "Designed and maintained RESTful/GraphQL APIs with JWT authentication, integrated payment gateways and third-party services",
+  "Optimized application performance through query tuning, Redis caching, and code splitting strategies",
+  "Mentored junior developers through code reviews, pair programming, and internal tech talks",
+];
+
+const STATS = [
+  { num: 5, suffix: "+", label: "Years Experience" },
+  { num: 9, suffix: "", label: "Projects Delivered" },
+  { num: 5, suffix: "", label: "As Team Lead" },
+  { num: 2, suffix: "", label: "Markets Served" },
+];
+
+const NAV_LINKS = ["About", "Skills", "Projects", "Experience", "Contact"];
+
+/* ===================== HELPERS ===================== */
+const $ = (s, p = document) => p.querySelector(s);
+const $$ = (s, p = document) => [...p.querySelectorAll(s)];
+const isFreelance = r => r === "Freelance";
+
+function smoothScroll(id) {
+  const el = document.getElementById(id);
+  if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60, behavior: "smooth" });
+}
+
+/* ===================== BUILD NAV ===================== */
+const navLinksEl = $("#nav-links");
+const navMobileEl = $("#nav-mobile");
+NAV_LINKS.forEach(l => {
+  const id = l.toLowerCase();
+  const a = document.createElement("a");
+  a.href = "#" + id; a.className = "nav-link"; a.textContent = l; a.dataset.scroll = id;
+  navLinksEl.appendChild(a);
+  const m = document.createElement("a");
+  m.href = "#" + id; m.textContent = l; m.dataset.scroll = id;
+  navMobileEl.appendChild(m);
+});
+
+// scroll handlers (delegation)
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-scroll]");
+  if (t) {
+    e.preventDefault();
+    smoothScroll(t.dataset.scroll);
+    $("#burger").classList.remove("open");
+    navMobileEl.classList.remove("open");
+  }
+});
+
+// burger toggle
+$("#burger").addEventListener("click", () => {
+  $("#burger").classList.toggle("open");
+  navMobileEl.classList.toggle("open");
+});
+
+/* ===================== BUILD STATS ===================== */
+const statsEl = $("#stats");
+STATS.forEach((s, i) => {
+  const wrap = document.createElement("div");
+  wrap.className = "reveal scale stat";
+  wrap.style.transitionDelay = (i * 0.12) + "s";
+  wrap.innerHTML = `<div class="stat-num gradient-text" data-count="${s.num}" data-suffix="${s.suffix}">0${s.suffix}</div><div class="stat-label">${s.label}</div>`;
+  statsEl.appendChild(wrap);
+});
+
+/* ===================== BUILD SKILLS ===================== */
+const skillsListEl = $("#skills-list");
+SKILLS.forEach((g, gi) => {
+  const group = document.createElement("div");
+  group.className = "reveal left skill-group";
+  group.style.transitionDelay = (gi * 0.08) + "s";
+  const pills = g.items.map(it => `<span class="skill-pill">${it}</span>`).join("");
+  group.innerHTML = `<div class="skill-cat">${g.category}</div><div class="skill-pills">${pills}</div>`;
+  skillsListEl.appendChild(group);
+});
+
+/* ===================== BUILD FILTERS + PROJECTS ===================== */
+const FILTERS = [
+  { key: "all", label: "All (9)" },
+  { key: "lead", label: "Lead (5)" },
+  { key: "developer", label: "Developer (2)" },
+  { key: "freelance", label: "Freelance (2)" },
+];
+const filtersEl = $("#filters");
+let currentFilter = "all";
+FILTERS.forEach(f => {
+  const b = document.createElement("button");
+  b.className = "filter-btn" + (f.key === "all" ? " active" : "");
+  b.textContent = f.label; b.dataset.filter = f.key;
+  b.addEventListener("click", () => {
+    currentFilter = f.key;
+    $$(".filter-btn").forEach(x => x.classList.toggle("active", x.dataset.filter === f.key));
+    renderProjects();
+  });
+  filtersEl.appendChild(b);
+});
+
+function matchFilter(p) {
+  if (currentFilter === "all") return true;
+  if (currentFilter === "freelance") return p.role === "Freelance";
+  if (currentFilter === "lead") return p.role.includes("Lead");
+  if (currentFilter === "developer") return p.role.includes("Developer");
+  return true;
+}
+
+const gridEl = $("#project-grid");
+function renderProjects() {
+  gridEl.innerHTML = "";
+  PROJECTS.filter(matchFilter).forEach((p, i) => {
+    const fl = isFreelance(p.role);
+    const tone = fl ? "amber" : "blue";
+    const glowColor = fl ? "251,191,36" : "96,165,250";
+    const card = document.createElement("div");
+    card.className = "card " + tone + " reveal " + (i % 2 === 0 ? "left" : "right");
+    card.style.transitionDelay = (i * 0.06) + "s";
+    const tags = p.tags.map(t => `<span class="tag ${tone}">${t}</span>`).join("");
+    card.innerHTML = `
+      <div class="card-glow" style="background:radial-gradient(circle,rgba(${glowColor},0.12) 0%,transparent 70%)"></div>
+      <div class="card-inner">
+        <div class="card-top">
+          <span class="card-role ${tone}">${p.role}</span>
+          ${p.market ? `<span class="card-market">${p.market}</span>` : ""}
+        </div>
+        <div class="card-title">${p.title}</div>
+        <div class="card-period">${p.period}</div>
+        <p class="card-desc">${p.desc}</p>
+        <div class="card-tags">${tags}</div>
+      </div>`;
+    attachGlow(card);
+    gridEl.appendChild(card);
+    requestAnimationFrame(() => observeReveal(card));
+  });
+}
+
+/* ===================== BUILD EXPERIENCE ===================== */
+const expEl = $("#exp-list");
+EXPERIENCE.forEach((b, i) => {
+  const item = document.createElement("div");
+  item.className = "card reveal " + (i % 2 === 0 ? "left" : "right");
+  item.style.transitionDelay = (i * 0.08) + "s";
+  item.innerHTML = `
+    <div class="card-glow" style="background:radial-gradient(circle,rgba(96,165,250,0.12) 0%,transparent 70%)"></div>
+    <div class="exp-item-inner"><div class="exp-dot"></div><p class="exp-text">${b}</p></div>`;
+  attachGlow(item);
+  expEl.appendChild(item);
+});
+
+/* ===================== MOUSE GLOW on cards ===================== */
+function attachGlow(card) {
+  const glow = card.querySelector(".card-glow");
+  if (!glow) return;
+  card.addEventListener("mousemove", e => {
+    const rect = card.getBoundingClientRect();
+    glow.style.left = (e.clientX - rect.left - 150) + "px";
+    glow.style.top = (e.clientY - rect.top - 150) + "px";
+  });
+}
+attachGlow($("#edu-card"));
+
+/* ===================== REVEAL ON SCROLL ===================== */
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); revealObserver.unobserve(e.target); } });
+}, { threshold: 0.12 });
+function observeReveal(el) { revealObserver.observe(el); }
+$$(".reveal").forEach(observeReveal);
+
+/* ===================== TYPEWRITER (loops forever) ===================== */
+(function typewriter() {
+  if (window.__typed) return;
+  window.__typed = true;
+  const text = "HELLO, I'M";
+  const target = $("#typewriter");
+  const caret = $("#caret");
+  caret.style.animation = "blink 0.8s step-end infinite"; // caret always blinks
+  const TYPE_SPEED = 90;    // ms per char when typing
+  const ERASE_SPEED = 45;   // ms per char when erasing
+  const HOLD_FULL = 1600;   // pause after fully typed
+  const HOLD_EMPTY = 500;   // pause after fully erased
+
+  function typeLoop() {
+    let i = 0;
+    const typing = setInterval(() => {
+      i++;
+      target.textContent = text.slice(0, i);
+      if (i >= text.length) {
+        clearInterval(typing);
+        setTimeout(eraseLoop, HOLD_FULL);
+      }
+    }, TYPE_SPEED);
+  }
+  function eraseLoop() {
+    let i = text.length;
+    const erasing = setInterval(() => {
+      i--;
+      target.textContent = text.slice(0, i);
+      if (i <= 0) {
+        clearInterval(erasing);
+        setTimeout(typeLoop, HOLD_EMPTY);
+      }
+    }, ERASE_SPEED);
+  }
+  setTimeout(typeLoop, 700);
+})();
+
+/* ===================== HERO REVEAL ===================== */
+window.addEventListener("load", () => {
+  setTimeout(() => $$(".reveal-hero").forEach(el => el.classList.add("in")), 200);
+});
+
+/* ===================== COUNT UP ===================== */
+const countObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const el = e.target;
+    const end = parseInt(el.dataset.count);
+    const suffix = el.dataset.suffix || "";
+    let cur = 0;
+    const step = Math.max(1, Math.ceil(1500 / end));
+    const iv = setInterval(() => {
+      cur++;
+      el.textContent = cur + suffix;
+      if (cur >= end) clearInterval(iv);
+    }, step);
+    countObserver.unobserve(el);
+  });
+}, { threshold: 0.5 });
+$$("[data-count]").forEach(el => countObserver.observe(el));
+
+/* ===================== NAV SCROLL STATE + ACTIVE LINK + PROGRESS ===================== */
+const navEl = $("#nav");
+const sections = ["about", "skills", "projects", "experience", "contact"];
+const activeObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      $$(".nav-link").forEach(a => a.classList.toggle("is-active", a.dataset.scroll === id));
+      $$(".nav-mobile a").forEach(a => a.classList.toggle("is-active", a.dataset.scroll === id));
+    }
+  });
+}, { threshold: 0.25 });
+sections.forEach(id => { const el = document.getElementById(id); if (el) activeObserver.observe(el); });
+
+const progressBar = $("#progress-bar");
+window.addEventListener("scroll", () => {
+  navEl.classList.toggle("scrolled", window.scrollY > 50);
+  const docH = document.documentElement.scrollHeight - window.innerHeight;
+  progressBar.style.width = (docH > 0 ? (window.scrollY / docH) * 100 : 0) + "%";
+});
+
+/* ===================== AMBIENT BACKGROUND ===================== */
+(function ambient() {
+  const canvas = $("#ambient");
+  const ctx = canvas.getContext("2d");
+  let w, h, particles, animId;
+  const mouse = { x: 0.5, y: 0.5 };
+
+  function init() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    const COUNT = w < 768 ? 50 : 110;
+    particles = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18,
+      r: Math.random() * 1.4 + 0.4, o: Math.random() * 0.22 + 0.05,
+      depth: Math.random() * 0.6 + 0.4, hue: Math.random() * 40 - 12,
+    }));
+  }
+  const CONNECT = 110;
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    const px = (mouse.x - 0.5) * 30, py = (mouse.y - 0.5) * 30;
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20;
+      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20;
+      const dx = p.x - px * p.depth, dy = p.y - py * p.depth;
+      ctx.beginPath(); ctx.arc(dx, dy, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${216 + p.hue},75%,65%,${p.o})`; ctx.fill();
+    });
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const dx = a.x - b.x, dy = a.y - b.y, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < CONNECT) {
+          const ax = a.x - px*a.depth, ay = a.y - py*a.depth, bx = b.x - px*b.depth, by = b.y - py*b.depth;
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+          ctx.strokeStyle = `rgba(96,165,250,${0.05 * (1 - dist/CONNECT)})`; ctx.lineWidth = 0.5; ctx.stroke();
+        }
+      }
+    }
+    animId = requestAnimationFrame(draw);
+  }
+  window.addEventListener("mousemove", e => { mouse.x = e.clientX / window.innerWidth; mouse.y = e.clientY / window.innerHeight; });
+  window.addEventListener("resize", () => { cancelAnimationFrame(animId); init(); draw(); });
+  init(); draw();
+})();
+
+/* ===================== HERO INTERACTIVE PARTICLE FIELD ===================== */
+(function heroField() {
+  const canvas = $("#hero-canvas");
+  const ctx = canvas.getContext("2d");
+  const hero = $("#hero");
+  const mouse = { x: -9999, y: -9999, active: false };
+  let w, h, particles, animId;
+  const CONNECT_DIST = 130, MOUSE_RADIUS = 180, MOUSE_PUSH = 0.06, MOUSE_CONNECT = 220;
+
+  function init() {
+    w = canvas.width = hero.offsetWidth;
+    h = canvas.height = hero.offsetHeight;
+    const COUNT = w < 768 ? 150 : 300;
+    particles = Array.from({ length: COUNT }, () => {
+      const r = Math.random() * 1.8 + 0.5, o = Math.random() * 0.35 + 0.1;
+      const vx = (Math.random() - 0.5) * 0.35, vy = (Math.random() - 0.5) * 0.35;
+      return { x: Math.random()*w, y: Math.random()*h, vx, vy, baseVx: vx, baseVy: vy, r, baseR: r, o, baseO: o, hue: Math.random()*40 - 10 };
+    });
+  }
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    const mx = mouse.x, my = mouse.y, on = mouse.active;
+    particles.forEach(p => {
+      if (on) {
+        const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < MOUSE_RADIUS && dist > 0) {
+          const f = (MOUSE_RADIUS - dist) / MOUSE_RADIUS, ang = Math.atan2(dy, dx);
+          p.vx += Math.cos(ang) * f * MOUSE_PUSH; p.vy += Math.sin(ang) * f * MOUSE_PUSH;
+          p.r = p.baseR + f * 2.5; p.o = Math.min(p.baseO + f * 0.5, 0.8);
+        } else { p.r += (p.baseR - p.r) * 0.08; p.o += (p.baseO - p.o) * 0.08; }
+      } else { p.r += (p.baseR - p.r) * 0.05; p.o += (p.baseO - p.o) * 0.05; }
+      p.vx += (p.baseVx - p.vx) * 0.02; p.vy += (p.baseVy - p.vy) * 0.02;
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20;
+      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = `hsla(${216 + p.hue},80%,68%,${p.o})`; ctx.fill();
+      if (p.r > p.baseR + 0.5) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI*2);
+        ctx.fillStyle = `hsla(${216 + p.hue},80%,68%,${(p.o - p.baseO) * 0.15})`; ctx.fill();
+      }
+    });
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const dx = a.x - b.x, dy = a.y - b.y, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < CONNECT_DIST) {
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = `rgba(96,165,250,${0.1 * (1 - dist/CONNECT_DIST)})`; ctx.lineWidth = 0.6; ctx.stroke();
+        }
+      }
+    }
+    if (on) {
+      particles.forEach(p => {
+        const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < MOUSE_CONNECT) {
+          const al = 0.18 * (1 - dist/MOUSE_CONNECT);
+          const grad = ctx.createLinearGradient(mx, my, p.x, p.y);
+          grad.addColorStop(0, `rgba(96,165,250,${al*0.6})`);
+          grad.addColorStop(1, `rgba(52,211,153,${al})`);
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(p.x, p.y);
+          ctx.strokeStyle = grad; ctx.lineWidth = 0.8; ctx.stroke();
+        }
+      });
+      ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI*2); ctx.fillStyle = "rgba(96,165,250,0.5)"; ctx.fill();
+      ctx.beginPath(); ctx.arc(mx, my, 20, 0, Math.PI*2); ctx.fillStyle = "rgba(96,165,250,0.04)"; ctx.fill();
+    }
+    animId = requestAnimationFrame(draw);
+  }
+  function onMove(e) { const rect = canvas.getBoundingClientRect(); mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top; mouse.active = true; }
+  function onLeave() { mouse.active = false; }
+  hero.addEventListener("mousemove", onMove);
+  hero.addEventListener("mouseleave", onLeave);
+  window.addEventListener("resize", () => { cancelAnimationFrame(animId); init(); draw(); });
+  init(); draw();
+})();
+
+/* ===================== INITIAL RENDER ===================== */
+renderProjects();
+</script>
+</body>
+</html>
