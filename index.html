@@ -675,85 +675,127 @@ window.addEventListener("scroll", () => {
   init(); draw();
 })();
 
-/* ===================== HERO INTERACTIVE PARTICLE FIELD ===================== */
-(function heroField() {
-  const canvas = $("#hero-canvas");
-  const ctx = canvas.getContext("2d");
-  const hero = $("#hero");
-  const mouse = { x: -9999, y: -9999, active: false };
-  let w, h, particles, animId;
-  const CONNECT_DIST = 130, MOUSE_RADIUS = 180, MOUSE_PUSH = 0.06, MOUSE_CONNECT = 220;
-
-  function init() {
-    w = canvas.width = hero.offsetWidth;
-    h = canvas.height = hero.offsetHeight;
-    const COUNT = w < 768 ? 150 : 300;
-    particles = Array.from({ length: COUNT }, () => {
-      const r = Math.random() * 1.8 + 0.5, o = Math.random() * 0.35 + 0.1;
-      const vx = (Math.random() - 0.5) * 0.35, vy = (Math.random() - 0.5) * 0.35;
-      return { x: Math.random()*w, y: Math.random()*h, vx, vy, baseVx: vx, baseVy: vy, r, baseR: r, o, baseO: o, hue: Math.random()*40 - 10 };
-    });
-  }
-  function draw() {
-    ctx.clearRect(0, 0, w, h);
-    const mx = mouse.x, my = mouse.y, on = mouse.active;
-    particles.forEach(p => {
-      if (on) {
-        const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < MOUSE_RADIUS && dist > 0) {
-          const f = (MOUSE_RADIUS - dist) / MOUSE_RADIUS, ang = Math.atan2(dy, dx);
-          p.vx += Math.cos(ang) * f * MOUSE_PUSH; p.vy += Math.sin(ang) * f * MOUSE_PUSH;
-          p.r = p.baseR + f * 2.5; p.o = Math.min(p.baseO + f * 0.5, 0.8);
-        } else { p.r += (p.baseR - p.r) * 0.08; p.o += (p.baseO - p.o) * 0.08; }
-      } else { p.r += (p.baseR - p.r) * 0.05; p.o += (p.baseO - p.o) * 0.05; }
-      p.vx += (p.baseVx - p.vx) * 0.02; p.vy += (p.baseVy - p.vy) * 0.02;
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20;
-      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fillStyle = `hsla(${216 + p.hue},80%,68%,${p.o})`; ctx.fill();
-      if (p.r > p.baseR + 0.5) {
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI*2);
-        ctx.fillStyle = `hsla(${216 + p.hue},80%,68%,${(p.o - p.baseO) * 0.15})`; ctx.fill();
-      }
-    });
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const a = particles[i], b = particles[j];
-        const dx = a.x - b.x, dy = a.y - b.y, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < CONNECT_DIST) {
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-          ctx.strokeStyle = `rgba(96,165,250,${0.1 * (1 - dist/CONNECT_DIST)})`; ctx.lineWidth = 0.6; ctx.stroke();
-        }
-      }
-    }
-    if (on) {
-      particles.forEach(p => {
-        const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < MOUSE_CONNECT) {
-          const al = 0.18 * (1 - dist/MOUSE_CONNECT);
-          const grad = ctx.createLinearGradient(mx, my, p.x, p.y);
-          grad.addColorStop(0, `rgba(96,165,250,${al*0.6})`);
-          grad.addColorStop(1, `rgba(52,211,153,${al})`);
-          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(p.x, p.y);
-          ctx.strokeStyle = grad; ctx.lineWidth = 0.8; ctx.stroke();
-        }
-      });
-      ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI*2); ctx.fillStyle = "rgba(96,165,250,0.5)"; ctx.fill();
-      ctx.beginPath(); ctx.arc(mx, my, 20, 0, Math.PI*2); ctx.fillStyle = "rgba(96,165,250,0.04)"; ctx.fill();
-    }
-    animId = requestAnimationFrame(draw);
-  }
-  function onMove(e) { const rect = canvas.getBoundingClientRect(); mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top; mouse.active = true; }
-  function onLeave() { mouse.active = false; }
-  hero.addEventListener("mousemove", onMove);
-  hero.addEventListener("mouseleave", onLeave);
-  window.addEventListener("resize", () => { cancelAnimationFrame(animId); init(); draw(); });
-  init(); draw();
-})();
-
 /* ===================== INITIAL RENDER ===================== */
 renderProjects();
+</script>
+
+<!-- ===================== HERO 3D SCENE (Three.js) ===================== -->
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.1/build/three.module.js";
+
+const hero = document.getElementById("hero");
+const canvas = document.getElementById("hero-canvas");
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let w = hero.offsetWidth, h = hero.offsetHeight;
+
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(w, h);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100);
+camera.position.z = 6;
+
+const rig = new THREE.Group();
+scene.add(rig);
+
+// Layered wireframe polyhedra
+const shellA = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.7, 1)),
+  new THREE.LineBasicMaterial({ color: 0x60A5FA, transparent: true, opacity: 0.4 })
+);
+const shellB = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.05, 0)),
+  new THREE.LineBasicMaterial({ color: 0x34D399, transparent: true, opacity: 0.3 })
+);
+shellB.rotation.set(0.6, 0.3, 0);
+rig.add(shellA, shellB);
+
+// Particle field
+const PARTICLE_COUNT = w < 768 ? 350 : 700;
+const positions = new Float32Array(PARTICLE_COUNT * 3);
+const colors = new Float32Array(PARTICLE_COUNT * 3);
+const palette = [new THREE.Color(0x60A5FA), new THREE.Color(0x34D399), new THREE.Color(0xA78BFA)];
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  const radius = 2.4 + Math.random() * 3.2;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(Math.random() * 2 - 1);
+  positions[i*3]     = radius * Math.sin(phi) * Math.cos(theta);
+  positions[i*3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+  positions[i*3 + 2] = radius * Math.cos(phi);
+  const c = palette[i % palette.length];
+  colors[i*3] = c.r; colors[i*3 + 1] = c.g; colors[i*3 + 2] = c.b;
+}
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+particleGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+// Soft circular sprite so points render as glowing dots, not hard squares
+const dotCanvas = document.createElement("canvas");
+dotCanvas.width = dotCanvas.height = 64;
+const dctx = dotCanvas.getContext("2d");
+const grad = dctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+grad.addColorStop(0, "rgba(255,255,255,1)");
+grad.addColorStop(0.4, "rgba(255,255,255,0.6)");
+grad.addColorStop(1, "rgba(255,255,255,0)");
+dctx.fillStyle = grad;
+dctx.fillRect(0, 0, 64, 64);
+const dotTexture = new THREE.CanvasTexture(dotCanvas);
+
+const particleMat = new THREE.PointsMaterial({
+  size: 0.05, map: dotTexture, vertexColors: true, transparent: true, opacity: 0.9,
+  blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
+
+// Mouse parallax
+const target = { x: 0, y: 0 };
+function onMove(e) {
+  const rect = hero.getBoundingClientRect();
+  target.x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+  target.y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+}
+function onLeave() { target.x = 0; target.y = 0; }
+hero.addEventListener("mousemove", onMove);
+hero.addEventListener("mouseleave", onLeave);
+
+function onResize() {
+  w = hero.offsetWidth; h = hero.offsetHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", onResize);
+
+// Pause rendering when hero is off-screen or tab hidden
+let visible = true;
+const heroObserver = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.05 });
+heroObserver.observe(hero);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && visible) requestAnimationFrame(animate); });
+
+const ROT_SPEED = reducedMotion ? 0.0002 : 0.0018;
+let animId;
+function animate() {
+  animId = requestAnimationFrame(animate);
+  if (!visible || document.hidden) return;
+
+  shellA.rotation.x += ROT_SPEED; shellA.rotation.y += ROT_SPEED * 1.3;
+  shellB.rotation.x -= ROT_SPEED * 0.8; shellB.rotation.y -= ROT_SPEED * 1.1;
+  particles.rotation.y += ROT_SPEED * 0.35;
+
+  if (!reducedMotion) {
+    rig.rotation.y += (target.x * 0.35 - rig.rotation.y) * 0.04;
+    rig.rotation.x += (-target.y * 0.25 - rig.rotation.x) * 0.04;
+    camera.position.x += (target.x * 0.4 - camera.position.x) * 0.04;
+    camera.position.y += (-target.y * 0.3 - camera.position.y) * 0.04;
+    camera.lookAt(scene.position);
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
 </script>
 </body>
 </html>
