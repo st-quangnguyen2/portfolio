@@ -627,54 +627,6 @@ window.addEventListener("scroll", () => {
   progressBar.style.width = (docH > 0 ? (window.scrollY / docH) * 100 : 0) + "%";
 });
 
-/* ===================== AMBIENT BACKGROUND ===================== */
-(function ambient() {
-  const canvas = $("#ambient");
-  const ctx = canvas.getContext("2d");
-  let w, h, particles, animId;
-  const mouse = { x: 0.5, y: 0.5 };
-
-  function init() {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-    const COUNT = w < 768 ? 50 : 110;
-    particles = Array.from({ length: COUNT }, () => ({
-      x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18,
-      r: Math.random() * 1.4 + 0.4, o: Math.random() * 0.22 + 0.05,
-      depth: Math.random() * 0.6 + 0.4, hue: Math.random() * 40 - 12,
-    }));
-  }
-  const CONNECT = 110;
-  function draw() {
-    ctx.clearRect(0, 0, w, h);
-    const px = (mouse.x - 0.5) * 30, py = (mouse.y - 0.5) * 30;
-    particles.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20;
-      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20;
-      const dx = p.x - px * p.depth, dy = p.y - py * p.depth;
-      ctx.beginPath(); ctx.arc(dx, dy, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${216 + p.hue},75%,65%,${p.o})`; ctx.fill();
-    });
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const a = particles[i], b = particles[j];
-        const dx = a.x - b.x, dy = a.y - b.y, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < CONNECT) {
-          const ax = a.x - px*a.depth, ay = a.y - py*a.depth, bx = b.x - px*b.depth, by = b.y - py*b.depth;
-          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-          ctx.strokeStyle = `rgba(96,165,250,${0.05 * (1 - dist/CONNECT)})`; ctx.lineWidth = 0.5; ctx.stroke();
-        }
-      }
-    }
-    animId = requestAnimationFrame(draw);
-  }
-  window.addEventListener("mousemove", e => { mouse.x = e.clientX / window.innerWidth; mouse.y = e.clientY / window.innerHeight; });
-  window.addEventListener("resize", () => { cancelAnimationFrame(animId); init(); draw(); });
-  init(); draw();
-})();
-
 /* ===================== INITIAL RENDER ===================== */
 renderProjects();
 </script>
@@ -792,6 +744,321 @@ function animate() {
     camera.position.y += (-target.y * 0.3 - camera.position.y) * 0.04;
     camera.lookAt(scene.position);
   }
+
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+
+<!-- ===================== STAR MAP BACKGROUND (real constellations · Three.js) ===================== -->
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.1/build/three.module.js";
+
+/*
+ * Real bright-star catalogue (J2000). Positions are given as
+ * [name, RA(hours), Dec(degrees), apparent magnitude, optional hex tint].
+ * `lines` connect stars by their index within the same constellation.
+ */
+const CONSTELLATIONS = [
+  { name: "Orion", stars: [
+      ["Betelgeuse", 5.919, 7.407, 0.50, 0xFFB27A],
+      ["Rigel", 5.242, -8.202, 0.18],
+      ["Bellatrix", 5.418, 6.350, 1.64],
+      ["Saiph", 5.796, -9.670, 2.07],
+      ["Alnitak", 5.679, -1.943, 1.74],
+      ["Alnilam", 5.604, -1.202, 1.69],
+      ["Mintaka", 5.533, -0.299, 2.23],
+      ["Meissa", 5.585, 9.934, 3.50],
+    ], lines: [[0,2],[0,4],[2,6],[1,6],[3,4],[1,3],[4,5],[5,6],[0,7],[2,7]] },
+
+  { name: "Ursa Major", stars: [
+      ["Dubhe", 11.062, 61.751, 1.79],
+      ["Merak", 11.031, 56.383, 2.37],
+      ["Phecda", 11.897, 53.695, 2.44],
+      ["Megrez", 12.257, 57.033, 3.31],
+      ["Alioth", 12.900, 55.960, 1.77],
+      ["Mizar", 13.399, 54.925, 2.23],
+      ["Alkaid", 13.792, 49.313, 1.86],
+    ], lines: [[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6]] },
+
+  { name: "Cassiopeia", stars: [
+      ["Caph", 0.153, 59.150, 2.28],
+      ["Schedar", 0.675, 56.537, 2.24],
+      ["Gamma Cas", 0.945, 60.717, 2.15],
+      ["Ruchbah", 1.430, 60.235, 2.68],
+      ["Segin", 1.906, 63.670, 3.35],
+    ], lines: [[0,1],[1,2],[2,3],[3,4]] },
+
+  { name: "Cygnus", stars: [
+      ["Deneb", 20.690, 45.280, 1.25],
+      ["Sadr", 20.370, 40.257, 2.23],
+      ["Gienah", 20.770, 33.970, 2.48],
+      ["Delta Cyg", 19.750, 45.131, 2.87],
+      ["Albireo", 19.512, 27.960, 3.10],
+    ], lines: [[0,1],[1,4],[2,1],[1,3]] },
+
+  { name: "Leo", stars: [
+      ["Regulus", 10.140, 11.967, 1.35],
+      ["Eta Leo", 10.123, 16.763, 3.48],
+      ["Algieba", 10.333, 19.842, 2.21],
+      ["Adhafera", 10.278, 23.417, 3.44],
+      ["Ras Elased", 9.764, 23.774, 2.98],
+      ["Zosma", 11.235, 20.524, 2.56],
+      ["Denebola", 11.818, 14.572, 2.11],
+    ], lines: [[4,3],[3,2],[2,1],[1,0],[2,5],[5,6],[6,0]] },
+
+  { name: "Scorpius", stars: [
+      ["Graffias", 16.090, -19.805, 2.62],
+      ["Dschubba", 16.005, -22.622, 2.29],
+      ["Pi Sco", 15.981, -26.114, 2.89],
+      ["Antares", 16.490, -26.432, 0.96, 0xFF8A6E],
+      ["Tau Sco", 16.598, -28.216, 2.82],
+      ["Epsilon Sco", 16.836, -34.293, 2.29],
+      ["Mu Sco", 16.865, -38.017, 3.00],
+      ["Zeta Sco", 16.909, -42.361, 3.60],
+      ["Eta Sco", 17.204, -43.239, 3.33],
+      ["Sargas", 17.622, -42.998, 1.87],
+      ["Iota Sco", 17.793, -40.127, 3.03],
+      ["Kappa Sco", 17.708, -39.030, 2.39],
+      ["Shaula", 17.560, -37.104, 1.62],
+    ], lines: [[0,1],[1,2],[1,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12]] },
+
+  { name: "Taurus", stars: [
+      ["Aldebaran", 4.599, 16.509, 0.85, 0xFFB27A],
+      ["Elnath", 5.438, 28.607, 1.65],
+      ["Zeta Tau", 5.627, 21.143, 3.00],
+      ["Lambda Tau", 4.011, 12.490, 3.40],
+      ["Gamma Tau", 4.330, 15.628, 3.65],
+    ], lines: [[3,4],[4,0],[4,1],[0,2]] },
+
+  { name: "Canis Major", stars: [
+      ["Sirius", 6.752, -16.716, -1.46],
+      ["Mirzam", 6.378, -17.956, 1.98],
+      ["Wezen", 7.140, -26.393, 1.83],
+      ["Adhara", 6.977, -28.972, 1.50],
+      ["Aludra", 7.402, -29.303, 2.45],
+      ["Furud", 6.338, -30.063, 3.02],
+    ], lines: [[1,0],[0,2],[2,4],[2,3],[3,5]] },
+
+  { name: "Gemini", stars: [
+      ["Castor", 7.577, 31.888, 1.58],
+      ["Pollux", 7.755, 28.026, 1.14, 0xFFCC88],
+      ["Alhena", 6.629, 16.399, 1.90],
+      ["Wasat", 7.335, 21.982, 3.50],
+      ["Mebsuta", 6.732, 25.131, 3.06],
+      ["Tejat", 6.383, 22.514, 2.87],
+    ], lines: [[0,1],[0,4],[4,5],[1,3],[3,2]] },
+
+  { name: "Lyra", stars: [
+      ["Vega", 18.615, 38.784, 0.03],
+      ["Sheliak", 18.835, 33.363, 3.45],
+      ["Sulafat", 18.982, 32.690, 3.24],
+      ["Zeta Lyr", 18.746, 37.605, 4.30],
+      ["Delta Lyr", 18.908, 36.899, 4.30],
+    ], lines: [[0,3],[3,4],[4,2],[2,1],[1,3]] },
+
+  { name: "Bootes", stars: [
+      ["Arcturus", 14.261, 19.182, -0.05, 0xFFC080],
+      ["Muphrid", 13.911, 18.398, 2.68],
+      ["Izar", 14.750, 27.074, 2.35],
+      ["Seginus", 14.534, 38.308, 3.03],
+      ["Nekkar", 15.032, 40.391, 3.50],
+      ["Delta Boo", 15.258, 33.315, 3.47],
+    ], lines: [[0,1],[0,2],[2,3],[3,4],[4,5],[5,2]] },
+
+  { name: "Crux", stars: [
+      ["Acrux", 12.443, -63.099, 0.77],
+      ["Mimosa", 12.795, -59.689, 1.25],
+      ["Gacrux", 12.519, -57.113, 1.63, 0xFF9A5A],
+      ["Delta Cru", 12.252, -58.749, 2.79],
+    ], lines: [[0,2],[1,3]] },
+];
+
+const canvas = document.getElementById("ambient");
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SKY_R = 50; // celestial-sphere radius; camera sits at the centre
+
+let vw = window.innerWidth, vh = window.innerHeight;
+
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(vw, vh);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(58, vw / vh, 0.1, 200);
+// camera stays at the origin; the whole sky rotates around it
+
+const sky = new THREE.Group();
+scene.add(sky);
+
+// RA (hours) + Dec (degrees) -> point on the celestial sphere
+function raDecToVec(raH, decDeg, r = SKY_R) {
+  const ra = raH * (Math.PI / 12);
+  const dec = decDeg * (Math.PI / 180);
+  return new THREE.Vector3(
+    r * Math.cos(dec) * Math.cos(ra),
+    r * Math.sin(dec),
+    r * Math.cos(dec) * Math.sin(ra)
+  );
+}
+
+// Soft round sprite so points glow instead of rendering as hard squares
+const dot = document.createElement("canvas");
+dot.width = dot.height = 64;
+const dctx = dot.getContext("2d");
+const g = dctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+g.addColorStop(0, "rgba(255,255,255,1)");
+g.addColorStop(0.35, "rgba(255,255,255,0.75)");
+g.addColorStop(1, "rgba(255,255,255,0)");
+dctx.fillStyle = g; dctx.fillRect(0, 0, 64, 64);
+const dotTex = new THREE.CanvasTexture(dot);
+
+// Shared shader: per-point size + colour, optional gentle twinkle
+const starMat = new THREE.ShaderMaterial({
+  uniforms: { uMap: { value: dotTex }, uTime: { value: 0 } },
+  vertexShader: `
+    attribute float size;
+    attribute float twinkle;
+    attribute float phase;
+    varying vec3 vColor;
+    uniform float uTime;
+    void main() {
+      vColor = color;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      float tw = 1.0 + twinkle * sin(uTime * 2.5 + phase);
+      gl_PointSize = size * tw * (300.0 / -mv.z);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    uniform sampler2D uMap;
+    varying vec3 vColor;
+    void main() {
+      float a = texture2D(uMap, gl_PointCoord).a;
+      gl_FragColor = vec4(vColor, a);
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
+});
+
+// ---- Background field: many faint stars scattered over the sphere ----
+(function buildBackground() {
+  const N = vw < 768 ? 900 : 1700;
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+  const size = new Float32Array(N), tw = new Float32Array(N), ph = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const raH = Math.random() * 24;
+    const dec = Math.asin(Math.random() * 2 - 1) * (180 / Math.PI);
+    const v = raDecToVec(raH, dec);
+    pos[i*3] = v.x; pos[i*3+1] = v.y; pos[i*3+2] = v.z;
+    const t = Math.random();
+    // dim, mostly cool white with a faint blue lean
+    const shade = 0.35 + Math.random() * 0.4;
+    col[i*3] = shade * 0.85; col[i*3+1] = shade * 0.9; col[i*3+2] = shade;
+    size[i] = 0.5 + t * t * 1.1;
+    tw[i] = Math.random() < 0.3 ? 0.25 : 0.0;
+    ph[i] = Math.random() * 6.28;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.setAttribute("size", new THREE.BufferAttribute(size, 1));
+  geo.setAttribute("twinkle", new THREE.BufferAttribute(tw, 1));
+  geo.setAttribute("phase", new THREE.BufferAttribute(ph, 1));
+  sky.add(new THREE.Points(geo, starMat));
+})();
+
+// ---- Named bright stars + constellation lines + labels ----
+const labelGroup = new THREE.Group();
+sky.add(labelGroup);
+const SHOW_LABELS = true;
+
+(function buildConstellations() {
+  const bp = [], bc = [], bs = [], btw = [], bph = [];   // bright-star attribute arrays
+  const linePts = [];                                    // flat vertex list for LineSegments
+  const accent = new THREE.Color(0x60A5FA);
+
+  CONSTELLATIONS.forEach(con => {
+    const verts = con.stars.map(s => raDecToVec(s[1], s[2]));
+    con.stars.forEach((s, i) => {
+      const v = verts[i];
+      bp.push(v.x, v.y, v.z);
+      const tint = new THREE.Color(s[4] !== undefined ? s[4] : 0xEAF2FF);
+      bc.push(tint.r, tint.g, tint.b);
+      // magnitude -> size: brighter (smaller mag) = larger
+      bs.push(THREE.MathUtils.clamp(3.6 - s[3] * 0.75, 1.1, 5.2));
+      btw.push(0.18);
+      bph.push(Math.random() * 6.28);
+    });
+    con.lines.forEach(([a, b]) => {
+      linePts.push(verts[a].x, verts[a].y, verts[a].z, verts[b].x, verts[b].y, verts[b].z);
+    });
+
+    if (SHOW_LABELS) addLabel(con.name, verts);
+  });
+
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bp), 3));
+  bg.setAttribute("color", new THREE.BufferAttribute(new Float32Array(bc), 3));
+  bg.setAttribute("size", new THREE.BufferAttribute(new Float32Array(bs), 1));
+  bg.setAttribute("twinkle", new THREE.BufferAttribute(new Float32Array(btw), 1));
+  bg.setAttribute("phase", new THREE.BufferAttribute(new Float32Array(bph), 1));
+  sky.add(new THREE.Points(bg, starMat));
+
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(linePts), 3));
+  const lineMat = new THREE.LineBasicMaterial({ color: accent, transparent: true, opacity: 0.28 });
+  sky.add(new THREE.LineSegments(lg, lineMat));
+})();
+
+function addLabel(text, verts) {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 64;
+  const cx = c.getContext("2d");
+  cx.font = "600 26px 'IBM Plex Mono', monospace";
+  cx.fillStyle = "rgba(147,197,253,0.9)";
+  cx.textAlign = "center"; cx.textBaseline = "middle";
+  cx.fillText(text.toUpperCase(), 128, 34);
+  const tex = new THREE.CanvasTexture(c);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true, opacity: 0.32, depthWrite: false,
+  }));
+  const centroid = verts.reduce((a, v) => a.add(v), new THREE.Vector3()).normalize().multiplyScalar(SKY_R * 0.94);
+  sprite.position.copy(centroid);
+  sprite.scale.set(7, 1.75, 1);
+  labelGroup.add(sprite);
+}
+
+// Frame Orion at start, then let the sky drift about the celestial pole
+const baseDir = raDecToVec(5.9, 3, 1).normalize();
+const mouse = { x: 0, y: 0 }, sm = { x: 0, y: 0 };
+window.addEventListener("mousemove", e => {
+  mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+  mouse.y = (e.clientY / window.innerHeight - 0.5) * 2;
+});
+
+window.addEventListener("resize", () => {
+  vw = window.innerWidth; vh = window.innerHeight;
+  renderer.setSize(vw, vh);
+  camera.aspect = vw / vh; camera.updateProjectionMatrix();
+});
+
+const yAxis = new THREE.Vector3(0, 1, 0), xAxis = new THREE.Vector3(1, 0, 0);
+const DRIFT = reducedMotion ? 0 : 0.0009;
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (document.hidden) return;
+
+  starMat.uniforms.uTime.value = clock.getElapsedTime();
+  sky.rotation.y += DRIFT;
+
+  // subtle mouse parallax on the camera aim
+  sm.x += (mouse.x - sm.x) * 0.04;
+  sm.y += (mouse.y - sm.y) * 0.04;
+  const target = baseDir.clone()
+    .applyAxisAngle(yAxis, sm.x * 0.18)
+    .applyAxisAngle(xAxis, sm.y * 0.12);
+  camera.lookAt(target);
 
   renderer.render(scene, camera);
 }
